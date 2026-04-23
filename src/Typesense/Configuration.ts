@@ -109,6 +109,30 @@ export interface ConfigurationOptions {
    * See axios documentation for more information on how to use this parameter: https://axios-http.com/docs/req_config
    */
   axiosAdapter?: AxiosRequestConfig["adapter"];
+  searchQueryMiddleware?: SearchQueryMiddlewareOptions;
+}
+
+export interface SearchQueryMiddlewareOptions {
+  /**
+   * Middleware endpoint that receives the user query and returns filters.
+   */
+  url: string;
+  /**
+   * API key sent to the middleware endpoint.
+   */
+  apiKey: string;
+  apiKeyHeader?: string;
+  queryParamName?: string;
+  requestTimeoutMs?: number;
+  enabled?: boolean;
+}
+
+export interface SearchQueryMiddlewareResolvedOptions
+  extends SearchQueryMiddlewareOptions {
+  apiKeyHeader: string;
+  queryParamName: string;
+  requestTimeoutMs: number;
+  enabled: boolean;
 }
 
 /**
@@ -162,6 +186,7 @@ export default class Configuration {
   readonly httpsAgent?: HTTPSAgent;
   readonly paramsSerializer?: any;
   readonly axiosAdapter?: AxiosRequestConfig["adapter"];
+  readonly searchQueryMiddleware?: SearchQueryMiddlewareResolvedOptions;
 
   constructor(options: ConfigurationOptions) {
     this.nodes = options.nodes || [];
@@ -209,6 +234,9 @@ export default class Configuration {
     this.httpsAgent = options.httpsAgent;
 
     this.paramsSerializer = options.paramsSerializer;
+    this.searchQueryMiddleware = this.resolveSearchQueryMiddleware(
+      options.searchQueryMiddleware,
+    );
 
     this.showDeprecationWarnings(options);
     this.validate();
@@ -234,7 +262,52 @@ export default class Configuration {
       throw new MissingConfigurationError("Ensure that apiKey is set");
     }
 
+    this.validateSearchQueryMiddleware();
+
     return true;
+  }
+
+  private validateSearchQueryMiddleware(): void {
+    if (
+      this.searchQueryMiddleware == null ||
+      this.searchQueryMiddleware.enabled !== true
+    ) {
+      return;
+    }
+
+    if (
+      typeof this.searchQueryMiddleware.url !== "string" ||
+      this.searchQueryMiddleware.url.trim() === ""
+    ) {
+      throw new MissingConfigurationError(
+        "Ensure that searchQueryMiddleware.url is set when middleware is enabled",
+      );
+    }
+
+    if (
+      typeof this.searchQueryMiddleware.apiKey !== "string" ||
+      this.searchQueryMiddleware.apiKey.trim() === ""
+    ) {
+      throw new MissingConfigurationError(
+        "Ensure that searchQueryMiddleware.apiKey is set when middleware is enabled",
+      );
+    }
+  }
+
+  private resolveSearchQueryMiddleware(
+    searchQueryMiddleware: SearchQueryMiddlewareOptions | undefined,
+  ): SearchQueryMiddlewareResolvedOptions | undefined {
+    if (searchQueryMiddleware == null) {
+      return undefined;
+    }
+
+    return {
+      ...searchQueryMiddleware,
+      enabled: searchQueryMiddleware.enabled ?? false,
+      apiKeyHeader: searchQueryMiddleware.apiKeyHeader ?? "x-api-key",
+      queryParamName: searchQueryMiddleware.queryParamName ?? "query",
+      requestTimeoutMs: searchQueryMiddleware.requestTimeoutMs ?? 5000,
+    };
   }
 
   private validateNodes(): boolean {
