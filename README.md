@@ -41,6 +41,10 @@ Tests are also a good place to know how the library works internally: [test](tes
 
 See [Configuration.ts](src/Typesense/Configuration.ts) for a list of all client configuration options.
 
+### AI Middleware Search Enrichment
+
+See [SEMANTIC_MIDDLEWARE.md](SEMANTIC_MIDDLEWARE.md) for details on middleware configuration and hybrid search behavior.
+
 ### Request Timeouts and Abort Signals
 
 The client supports both global timeout configuration and per-request abort signals:

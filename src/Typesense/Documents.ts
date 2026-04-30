@@ -195,6 +195,8 @@ export interface DocumentsExportParameters {
 export interface SearchOptions {
   cacheSearchResultsForSeconds?: number;
   abortSignal?: AbortSignal | null;
+  middlewareEnabled?: boolean;
+  middlewareTimeoutMs?: number;
 }
 
 const isNodeJSEnvironment =

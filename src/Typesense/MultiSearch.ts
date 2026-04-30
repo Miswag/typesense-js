@@ -19,11 +19,14 @@ import type {
   MultiSearchRequestsWithoutUnionSchema,
 } from "./Types";
 import { Logger } from "loglevel";
+import SearchQueryMiddleware from "./SearchQueryMiddleware";
+import { mergeFilterByClauses } from "./SearchQueryFilterBuilder";
 
 const RESOURCEPATH = "/multi_search";
 
 export default class MultiSearch {
   private requestWithCache: RequestWithCache;
+  private readonly searchQueryMiddleware: SearchQueryMiddleware;
   readonly logger: Logger;
 
   constructor(
@@ -33,6 +36,10 @@ export default class MultiSearch {
   ) {
     this.requestWithCache = new RequestWithCache();
     this.logger = this.apiCall.logger;
+    this.searchQueryMiddleware = new SearchQueryMiddleware(
+      this.configuration,
+      this.logger,
+    );
   }
 
   clearCache() {
@@ -104,7 +111,13 @@ export default class MultiSearch {
       paramsWithoutStream as SearchParams<T[number], Infix>,
     );
 
-    return this.requestWithCache.perform(
+    const middlewareTelemetryBySearch = await this.applySearchQueryMiddlewareFilters(
+      normalizedSearchRequests.searches,
+      normalizedQueryParams.q,
+      options,
+    );
+
+    const searchResponse = (await this.requestWithCache.perform(
       this.apiCall,
       "post",
       {
@@ -117,15 +130,109 @@ export default class MultiSearch {
         streamConfig,
         abortSignal: options?.abortSignal,
         isStreamingRequest: this.isStreamingRequest(params),
-      },
+      } as any,
       cacheSearchResultsForSeconds !== undefined
         ? { cacheResponseForSeconds: cacheSearchResultsForSeconds }
         : undefined,
+    )) as MultiSearchResponse<T, Infix>;
+
+    return this.appendMiddlewareTelemetryToResponse(
+      searchResponse,
+      middlewareTelemetryBySearch,
     );
   }
 
   private isStreamingRequest(commonParams: { streamConfig?: unknown }) {
     return commonParams.streamConfig !== undefined;
+  }
+
+  private async applySearchQueryMiddlewareFilters<
+    TDoc extends DocumentSchema,
+    Infix extends string,
+  >(
+    searches: ExtractBaseTypes<SearchParams<TDoc, Infix>>[],
+    commonQuery: unknown,
+    options?: SearchOptions,
+  ): Promise<(Record<string, unknown> | undefined)[]> {
+    return Promise.all(
+      searches.map(async (search) => {
+        const middlewareEnrichment = await this.searchQueryMiddleware.fetchEnrichment(
+          search.q ?? commonQuery,
+          {
+            enabledOverride: options?.middlewareEnabled,
+            timeoutMsOverride: options?.middlewareTimeoutMs,
+          },
+        );
+        const middlewareFilterBy = middlewareEnrichment?.filterBy;
+
+        search.filter_by = mergeFilterByClauses(
+          search.filter_by,
+          middlewareFilterBy,
+        ) as ExtractBaseTypes<SearchParams<TDoc, Infix>>["filter_by"];
+
+        return middlewareEnrichment?.telemetry;
+      }),
+    );
+  }
+
+  private appendMiddlewareTelemetryToResponse<
+    T extends DocumentSchema[],
+    Infix extends string,
+  >(
+    response: MultiSearchResponse<T, Infix>,
+    middlewareTelemetryBySearch: (Record<string, unknown> | undefined)[],
+  ): MultiSearchResponse<T, Infix> {
+    if (middlewareTelemetryBySearch.every((telemetry) => telemetry == null)) {
+      return response;
+    }
+
+    if ("results" in response && Array.isArray(response.results)) {
+      const enrichedResults = response.results.map((result, index) => {
+        const telemetry = middlewareTelemetryBySearch[index];
+        if (telemetry == null) {
+          return result;
+        }
+
+        const serializedTelemetry = JSON.parse(JSON.stringify(telemetry)) as Record<
+          string,
+          never
+        >;
+
+        return {
+          ...result,
+          metadata: {
+            ...(result.metadata ?? {}),
+            middleware_telemetry: serializedTelemetry,
+          },
+        };
+      }) as typeof response.results;
+
+      return {
+        ...response,
+        results: enrichedResults,
+      };
+    }
+
+    const unionResponse = response as UnionSearchResponse<T[number]>;
+    const firstTelemetry = middlewareTelemetryBySearch.find(
+      (telemetry) => telemetry != null,
+    );
+
+    if (firstTelemetry == null) {
+      return response;
+    }
+
+    const serializedTelemetry = JSON.parse(
+      JSON.stringify(firstTelemetry),
+    ) as Record<string, never>;
+
+    return {
+      ...unionResponse,
+      metadata: {
+        ...(unionResponse.metadata ?? {}),
+        middleware_telemetry: serializedTelemetry,
+      },
+    } as MultiSearchResponse<T, Infix>;
   }
 
   private hasAnySearchObjectPagination(searchRequests: MultiSearchRequestsSchema<DocumentSchema, string>) {
