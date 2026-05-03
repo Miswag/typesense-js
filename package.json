@@ -1,12 +1,10 @@
 {
-  "name": "typesense",
+  "name": "@miswag/typesense",
   "version": "3.0.7-0",
   "description": "Javascript Library for Typesense",
-  "homepage": "https://github.com/typesense/typesense-js",
+  "homepage": "https://github.com/Miswag/typesense-js",
   "author": {
-    "name": "Typesense, Inc.",
-    "email": "contact@typesense.org",
-    "url": "https://typesense.org"
+    "name": "Miswag"
   },
   "contributors": [
     {
@@ -106,7 +104,14 @@
     "typesenseServer:1": "docker run -i -p 7108:7108 -p 7107:7107 -v/tmp/typesense-server-data-2b/:/data -v`pwd`/typesense-server-nodes:/typesense-server-nodes typesense/typesense:27.0.rc26 --data-dir /data --api-key=xyz --listen-port 7108 --peering-port 7107 --enable-cors --nodes=/typesense-server-nodes",
     "typesenseServer:2": "docker run -i -p 9108:9108 -p 9107:9107 -v/tmp/typesense-server-data-3b/:/data -v`pwd`/typesense-server-nodes:/typesense-server-nodes typesense/typesense:27.0.rc26 --data-dir /data --api-key=xyz --listen-port 9108 --peering-port 9107 --enable-cors --nodes=/typesense-server-nodes"
   },
-  "repository": "typesense/typesense-js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Miswag/typesense-js.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
   "license": "Apache-2.0",
   "dependencies": {
     "axios": "^1.15.0",
