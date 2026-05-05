@@ -20,16 +20,7 @@ export interface SearchQueryMiddlewareEnrichment {
   telemetry?: Record<string, unknown>;
 }
 
-interface EnrichmentCacheEntry {
-  enrichment: SearchQueryMiddlewareEnrichment;
-  expiresAt: number;
-}
-
-const ENRICHMENT_CACHE_TTL_MS = 5 * 60 * 1000;
-
 export default class SearchQueryMiddleware {
-  private readonly enrichmentCache = new Map<string, EnrichmentCacheEntry>();
-
   constructor(
     private readonly configuration: Configuration,
     private readonly logger: Logger,
@@ -67,12 +58,6 @@ export default class SearchQueryMiddleware {
     }
 
     const queryText = String(query).trim();
-
-    const cached = this.enrichmentCache.get(queryText);
-    if (cached != null && Date.now() < cached.expiresAt) {
-      return cached.enrichment;
-    }
-
     try {
       const response = await axios.post<SearchQueryMiddlewareResponse>(
         middlewareConfig.url,
@@ -88,31 +73,16 @@ export default class SearchQueryMiddleware {
         },
       );
 
-      const enrichment: SearchQueryMiddlewareEnrichment = {
+      return {
         filterBy: buildFilterByFromMiddlewareResponse(response.data?.result?.filters),
         telemetry: response.data?.telemetry,
       };
-
-      this.enrichmentCache.set(queryText, {
-        enrichment,
-        expiresAt: Date.now() + ENRICHMENT_CACHE_TTL_MS,
-      });
-
-      return enrichment;
     } catch (error) {
       this.logger.warn(
         `Search query middleware call failed, proceeding without middleware filters: ${error}`,
       );
       return undefined;
     }
-  }
-
-  getCachedEnrichment(query: string): SearchQueryMiddlewareEnrichment | undefined {
-    const cached = this.enrichmentCache.get(query.trim());
-    if (cached != null && Date.now() < cached.expiresAt) {
-      return cached.enrichment;
-    }
-    return undefined;
   }
 
   private shouldRunMiddleware(

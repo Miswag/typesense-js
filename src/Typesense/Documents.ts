@@ -155,6 +155,8 @@ export interface SearchResponse<T extends DocumentSchema> {
   error?: string;
   code?: number;
   metadata?: JsonRecord;
+  ranked_found?: number;
+  recall_found?: number;
 }
 
 type JSONPrimitive = string | number | boolean | null;
