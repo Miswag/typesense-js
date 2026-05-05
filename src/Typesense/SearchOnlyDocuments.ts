@@ -11,7 +11,7 @@ import type {
 } from "./Documents";
 import { normalizeArrayableParams } from "./Utils";
 import { SearchableDocuments, SearchParams } from "./Types";
-import SearchQueryMiddleware from "./SearchQueryMiddleware";
+import SearchQueryMiddleware, { SearchQueryMiddlewareEnrichment } from "./SearchQueryMiddleware";
 import { mergeFilterByClauses } from "./SearchQueryFilterBuilder";
 
 const RESOURCEPATH = "/documents";
@@ -35,6 +35,10 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
 
   clearCache() {
     this.requestWithCache.clearCache();
+  }
+
+  getMiddlewareEnrichment(query: string): SearchQueryMiddlewareEnrichment | undefined {
+    return this.searchQueryMiddleware.getCachedEnrichment(query);
   }
 
   async search<const Infix extends string>(
