@@ -45,6 +45,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       abortSignal = null,
       middlewareEnabled = undefined,
       middlewareTimeoutMs = undefined,
+      precomputedFilterBy = undefined,
     }: SearchOptions = {},
   ): Promise<SearchResponse<T>> {
     const additionalQueryParams = {};
@@ -62,14 +63,23 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       ...additionalQueryParams,
       ...rest,
     };
-    const middlewareEnrichment = await this.searchQueryMiddleware.fetchEnrichment(
-      queryParams.q,
-      {
-        enabledOverride: middlewareEnabled,
-        timeoutMsOverride: middlewareTimeoutMs,
-      },
-    );
-    const middlewareFilterBy = middlewareEnrichment?.filterBy;
+
+    let middlewareFilterBy: string | undefined;
+    let middlewareTelemetry: Record<string, unknown> | undefined;
+
+    if (precomputedFilterBy != null && precomputedFilterBy.trim() !== "") {
+      middlewareFilterBy = precomputedFilterBy;
+    } else {
+      const middlewareEnrichment = await this.searchQueryMiddleware.fetchEnrichment(
+        queryParams.q,
+        {
+          enabledOverride: middlewareEnabled,
+          timeoutMsOverride: middlewareTimeoutMs,
+        },
+      );
+      middlewareFilterBy = middlewareEnrichment?.filterBy;
+      middlewareTelemetry = middlewareEnrichment?.telemetry;
+    }
 
     queryParams.filter_by = mergeFilterByClauses(
       queryParams.filter_by,
@@ -89,10 +99,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
         abortSignal,
         cacheSearchResultsForSeconds,
       );
-      return this.appendMiddlewareTelemetry(
-        hybridResponse,
-        middlewareEnrichment?.telemetry,
-      );
+      return this.appendMiddlewareTelemetry(hybridResponse, middlewareTelemetry);
     }
 
     const searchResponse = await this.requestWithCache.perform<
@@ -115,10 +122,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       },
     );
 
-    return this.appendMiddlewareTelemetry(
-      searchResponse,
-      middlewareEnrichment?.telemetry,
-    );
+    return this.appendMiddlewareTelemetry(searchResponse, middlewareTelemetry);
   }
 
   private shouldRunHybridSearch(

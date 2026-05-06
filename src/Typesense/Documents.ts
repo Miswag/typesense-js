@@ -199,6 +199,7 @@ export interface SearchOptions {
   abortSignal?: AbortSignal | null;
   middlewareEnabled?: boolean;
   middlewareTimeoutMs?: number;
+  precomputedFilterBy?: string;
 }
 
 const isNodeJSEnvironment =
