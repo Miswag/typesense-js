@@ -157,6 +157,7 @@ export interface SearchResponse<T extends DocumentSchema> {
   metadata?: JsonRecord;
   ranked_found?: number;
   recall_found?: number;
+  middleware_filter_by?: string;
 }
 
 type JSONPrimitive = string | number | boolean | null;

@@ -99,7 +99,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
         abortSignal,
         cacheSearchResultsForSeconds,
       );
-      return this.appendMiddlewareTelemetry(hybridResponse, middlewareTelemetry);
+      return this.appendMiddlewareTelemetry(hybridResponse, middlewareTelemetry, middlewareFilterBy);
     }
 
     const searchResponse = await this.requestWithCache.perform<
@@ -122,7 +122,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       },
     );
 
-    return this.appendMiddlewareTelemetry(searchResponse, middlewareTelemetry);
+    return this.appendMiddlewareTelemetry(searchResponse, middlewareTelemetry, middlewareFilterBy);
   }
 
   private shouldRunHybridSearch(
@@ -260,9 +260,16 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
   private appendMiddlewareTelemetry<TDoc extends DocumentSchema>(
     searchResponse: SearchResponse<TDoc>,
     telemetry: Record<string, unknown> | undefined,
+    filterBy?: string,
   ): SearchResponse<TDoc> {
+    let result: SearchResponse<TDoc> = searchResponse;
+
+    if (filterBy != null) {
+      result = { ...result, middleware_filter_by: filterBy };
+    }
+
     if (telemetry == null) {
-      return searchResponse;
+      return result;
     }
 
     const serializedTelemetry = JSON.parse(
@@ -270,9 +277,9 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
     ) as Record<string, never>;
 
     return {
-      ...searchResponse,
+      ...result,
       metadata: {
-        ...(searchResponse.metadata ?? {}),
+        ...(result.metadata ?? {}),
         middleware_telemetry: serializedTelemetry,
       },
     };
