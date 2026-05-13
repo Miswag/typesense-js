@@ -1,6 +1,7 @@
 type MiddlewareFilterValue = string | number | boolean;
 
-const DIVISION_FIELDS = new Set(["l1", "l2", "l3", "l4"]);
+const isDivisionField = (fieldName: string): boolean =>
+  /^l\d+_division/.test(fieldName);
 
 export function buildFilterByFromMiddlewareResponse(
   filters: Record<string, unknown> | undefined,
@@ -16,7 +17,7 @@ export function buildFilterByFromMiddlewareResponse(
     const clause = buildFieldClause(fieldName, fieldValues as unknown[]);
     if (clause == null) continue;
 
-    if (DIVISION_FIELDS.has(fieldName)) {
+    if (isDivisionField(fieldName)) {
       divisionClauses.push(clause);
     } else {
       otherClauses.push(clause);
