@@ -1,5 +1,7 @@
 type MiddlewareFilterValue = string | number | boolean;
 
+const DIVISION_FIELDS = new Set(["l1", "l2", "l3", "l4"]);
+
 export function buildFilterByFromMiddlewareResponse(
   filters: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -7,17 +9,37 @@ export function buildFilterByFromMiddlewareResponse(
     return undefined;
   }
 
-  const clauses = Object.entries(filters)
-    .map(([fieldName, fieldValues]) =>
-      buildFieldClause(fieldName, fieldValues as unknown[]),
-    )
-    .filter((clause): clause is string => clause !== undefined);
+  const divisionClauses: string[] = [];
+  const otherClauses: string[] = [];
 
-  if (clauses.length === 0) {
+  for (const [fieldName, fieldValues] of Object.entries(filters)) {
+    const clause = buildFieldClause(fieldName, fieldValues as unknown[]);
+    if (clause == null) continue;
+
+    if (DIVISION_FIELDS.has(fieldName)) {
+      divisionClauses.push(clause);
+    } else {
+      otherClauses.push(clause);
+    }
+  }
+
+  const parts: string[] = [];
+
+  if (divisionClauses.length === 1) {
+    parts.push(divisionClauses[0]);
+  } else if (divisionClauses.length > 1) {
+    parts.push(`(${divisionClauses.join(" || ")})`);
+  }
+
+  for (const clause of otherClauses) {
+    parts.push(clause);
+  }
+
+  if (parts.length === 0) {
     return undefined;
   }
 
-  return clauses.join(" && ");
+  return parts.join(" && ");
 }
 
 export function mergeFilterByClauses(
