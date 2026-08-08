@@ -82,6 +82,19 @@ describe("QueryEmbedder", () => {
     expect(vector).toBeUndefined();
   });
 
+  it("returns undefined when the embedding length does not match declared dimensions", async () => {
+    mockAxios.onPost(embedUrl).reply(200, {
+      query: "shampoo",
+      embedding: [1, 2, 3],
+      dimensions: 5,
+    });
+
+    const embedder = new QueryEmbedder(buildConfiguration(), logger);
+    const vector = await embedder.fetchVector("shampoo");
+
+    expect(vector).toBeUndefined();
+  });
+
   it("does not call the endpoint when queryEmbedding is not configured", async () => {
     const configuration = new Configuration({
       nodes: [{ host: "localhost", port: 8108, protocol: "http" }],
