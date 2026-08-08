@@ -19,7 +19,12 @@ export default class QueryEmbedder {
       return undefined;
     }
 
-    if (typeof query !== "string" || query.trim() === "") {
+    if (typeof query !== "string") {
+      return undefined;
+    }
+
+    const trimmedQuery = query.trim();
+    if (trimmedQuery === "" || trimmedQuery === "*") {
       return undefined;
     }
 
@@ -28,7 +33,7 @@ export default class QueryEmbedder {
         queryEmbeddingConfig.url,
         {
           action: queryEmbeddingConfig.action,
-          query: query.trim(),
+          query: trimmedQuery,
         },
         {
           timeout: queryEmbeddingConfig.requestTimeoutMs,

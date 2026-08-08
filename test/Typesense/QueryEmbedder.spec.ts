@@ -82,6 +82,19 @@ describe("QueryEmbedder", () => {
     expect(vector).toBeUndefined();
   });
 
+  it("returns undefined when the embedding array contains non-numeric values", async () => {
+    mockAxios.onPost(embedUrl).reply(200, {
+      query: "shampoo",
+      embedding: [1, "two", 3],
+      dimensions: 3,
+    });
+
+    const embedder = new QueryEmbedder(buildConfiguration(), logger);
+    const vector = await embedder.fetchVector("shampoo");
+
+    expect(vector).toBeUndefined();
+  });
+
   it("returns undefined when the embedding length does not match declared dimensions", async () => {
     mockAxios.onPost(embedUrl).reply(200, {
       query: "shampoo",
@@ -93,6 +106,25 @@ describe("QueryEmbedder", () => {
     const vector = await embedder.fetchVector("shampoo");
 
     expect(vector).toBeUndefined();
+  });
+
+  it("does not call the endpoint for an empty or whitespace-only query", async () => {
+    const embedder = new QueryEmbedder(buildConfiguration(), logger);
+
+    const emptyResult = await embedder.fetchVector("");
+    const whitespaceResult = await embedder.fetchVector("   ");
+
+    expect(emptyResult).toBeUndefined();
+    expect(whitespaceResult).toBeUndefined();
+    expect(mockAxios.history.post.length).toBe(0);
+  });
+
+  it("does not call the endpoint for a wildcard '*' query", async () => {
+    const embedder = new QueryEmbedder(buildConfiguration(), logger);
+    const vector = await embedder.fetchVector("*");
+
+    expect(vector).toBeUndefined();
+    expect(mockAxios.history.post.length).toBe(0);
   });
 
   it("does not call the endpoint when queryEmbedding is not configured", async () => {
