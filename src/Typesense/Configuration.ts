@@ -110,6 +110,7 @@ export interface ConfigurationOptions {
    */
   axiosAdapter?: AxiosRequestConfig["adapter"];
   searchQueryMiddleware?: SearchQueryMiddlewareOptions;
+  queryEmbedding?: QueryEmbeddingOptions;
 }
 
 export interface SearchQueryMiddlewareOptions {
@@ -131,6 +132,30 @@ export interface SearchQueryMiddlewareResolvedOptions
   extends SearchQueryMiddlewareOptions {
   apiKeyHeader: string;
   queryParamName: string;
+  requestTimeoutMs: number;
+  enabled: boolean;
+}
+
+export interface QueryEmbeddingOptions {
+  /**
+   * Embedding endpoint that receives the user query and returns a vector.
+   */
+  url: string;
+  /**
+   * Value sent as the "action" field in the request body. Default: "embed".
+   */
+  action?: string;
+  /**
+   * Typesense field the resulting vector is queried against. Default: "embedding".
+   */
+  vectorField?: string;
+  requestTimeoutMs?: number;
+  enabled?: boolean;
+}
+
+export interface QueryEmbeddingResolvedOptions extends QueryEmbeddingOptions {
+  action: string;
+  vectorField: string;
   requestTimeoutMs: number;
   enabled: boolean;
 }
@@ -187,6 +212,7 @@ export default class Configuration {
   readonly paramsSerializer?: any;
   readonly axiosAdapter?: AxiosRequestConfig["adapter"];
   readonly searchQueryMiddleware?: SearchQueryMiddlewareResolvedOptions;
+  readonly queryEmbedding?: QueryEmbeddingResolvedOptions;
 
   constructor(options: ConfigurationOptions) {
     this.nodes = options.nodes || [];
@@ -237,6 +263,7 @@ export default class Configuration {
     this.searchQueryMiddleware = this.resolveSearchQueryMiddleware(
       options.searchQueryMiddleware,
     );
+    this.queryEmbedding = this.resolveQueryEmbedding(options.queryEmbedding);
 
     this.showDeprecationWarnings(options);
     this.validate();
@@ -263,6 +290,7 @@ export default class Configuration {
     }
 
     this.validateSearchQueryMiddleware();
+    this.validateQueryEmbedding();
 
     return true;
   }
@@ -307,6 +335,37 @@ export default class Configuration {
       apiKeyHeader: searchQueryMiddleware.apiKeyHeader ?? "x-api-key",
       queryParamName: searchQueryMiddleware.queryParamName ?? "query",
       requestTimeoutMs: searchQueryMiddleware.requestTimeoutMs ?? 5000,
+    };
+  }
+
+  private validateQueryEmbedding(): void {
+    if (this.queryEmbedding == null || this.queryEmbedding.enabled !== true) {
+      return;
+    }
+
+    if (
+      typeof this.queryEmbedding.url !== "string" ||
+      this.queryEmbedding.url.trim() === ""
+    ) {
+      throw new MissingConfigurationError(
+        "Ensure that queryEmbedding.url is set when queryEmbedding is enabled",
+      );
+    }
+  }
+
+  private resolveQueryEmbedding(
+    queryEmbedding: QueryEmbeddingOptions | undefined,
+  ): QueryEmbeddingResolvedOptions | undefined {
+    if (queryEmbedding == null) {
+      return undefined;
+    }
+
+    return {
+      ...queryEmbedding,
+      enabled: queryEmbedding.enabled ?? false,
+      action: queryEmbedding.action ?? "embed",
+      vectorField: queryEmbedding.vectorField ?? "embedding",
+      requestTimeoutMs: queryEmbedding.requestTimeoutMs ?? 5000,
     };
   }
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Client as TypesenseClient } from "../../src/Typesense";
 import { MissingConfigurationError } from "../../src/Typesense/Errors";
-import {
+import Configuration, {
   NodeConfigurationWithHostname,
   NodeConfigurationWithUrl,
 } from "../../src/Typesense/Configuration";
@@ -144,5 +144,47 @@ describe("Configuration", function () {
           .host,
       ),
     ).toBe(true);
+  });
+});
+
+describe("Configuration queryEmbedding", () => {
+  const baseOptions = {
+    nodes: [{ host: "localhost", port: 8108, protocol: "http" }],
+    apiKey: "xyz",
+  };
+
+  it("resolves queryEmbedding defaults when provided", () => {
+    const configuration = new Configuration({
+      ...baseOptions,
+      queryEmbedding: {
+        url: "http://localhost:9001/2015-03-31/functions/function/invocations",
+        enabled: true,
+      },
+    });
+
+    expect(configuration.queryEmbedding).toEqual({
+      url: "http://localhost:9001/2015-03-31/functions/function/invocations",
+      action: "embed",
+      vectorField: "embedding",
+      requestTimeoutMs: 5000,
+      enabled: true,
+    });
+  });
+
+  it("leaves queryEmbedding undefined when not provided", () => {
+    const configuration = new Configuration(baseOptions);
+    expect(configuration.queryEmbedding).toBeUndefined();
+  });
+
+  it("throws when queryEmbedding.enabled is true but url is missing", () => {
+    expect(
+      () =>
+        new Configuration({
+          ...baseOptions,
+          queryEmbedding: { url: "", enabled: true } as any,
+        }),
+    ).toThrow(
+      "Ensure that queryEmbedding.url is set when queryEmbedding is enabled",
+    );
   });
 });
