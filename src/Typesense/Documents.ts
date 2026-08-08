@@ -201,6 +201,7 @@ export interface SearchOptions {
   middlewareEnabled?: boolean;
   middlewareTimeoutMs?: number;
   precomputedFilterBy?: string;
+  searchMode?: "vector" | "lexical";
 }
 
 const isNodeJSEnvironment =
