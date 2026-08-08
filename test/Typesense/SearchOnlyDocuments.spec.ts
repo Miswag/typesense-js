@@ -98,4 +98,60 @@ describe("SearchOnlyDocuments searchMode", () => {
     expect(capturedParams.vector_query).toBeUndefined();
     expect(capturedParams.q).toBe("شامبو للشعر");
   });
+
+  it("passes the original query text to search query middleware and still applies its filter_by in vector mode", async () => {
+    const middlewareUrl = "http://localhost:9002/middleware/enrich";
+
+    mockAxios.onPost(embedUrl).reply(200, {
+      embedding: [0.1, 0.2, 0.3],
+      dimensions: 3,
+    });
+
+    let capturedMiddlewareQuery: string | undefined;
+    mockAxios.onPost(middlewareUrl).reply((config) => {
+      capturedMiddlewareQuery = config.params?.query;
+      return [200, { result: { filters: { brand: ["Nike"] } }, telemetry: {} }];
+    });
+
+    let capturedParams: Record<string, unknown> = {};
+    mockAxios
+      .onGet(new RegExp(`/collections/${collectionName}/documents/search`))
+      .reply((config) => {
+        capturedParams = config.params ?? {};
+        return [200, { hits: [], found: 0 }];
+      });
+
+    const typesense = new TypesenseClient({
+      nodes: [{ host: "localhost", port: 8108, protocol: "http" }],
+      apiKey: "xyz",
+      queryEmbedding: {
+        url: embedUrl,
+        enabled: true,
+      },
+      searchQueryMiddleware: {
+        url: middlewareUrl,
+        apiKey: "middleware-key",
+        enabled: true,
+      },
+    });
+
+    await typesense
+      .collections(collectionName)
+      .documents()
+      .search({ q: "شامبو للشعر", query_by: "name" }, { searchMode: "vector" });
+
+    // Middleware must see the original query text, not the vector-mode "*" override.
+    expect(capturedMiddlewareQuery).toBe("شامبو للشعر");
+
+    // The final request is a pure vector search (q forced to "*", vector_query set)...
+    expect(capturedParams.q).toBe("*");
+    expect(capturedParams.vector_query).toContain(
+      "embedding:([0.1,0.2,0.3], k:",
+    );
+
+    // ...but still carries the middleware-derived filter, proving shouldRunHybridSearch
+    // skips hybrid search via the q === "*" branch, not merely because middleware
+    // was unconfigured.
+    expect(capturedParams.filter_by).toContain("Nike");
+  });
 });
