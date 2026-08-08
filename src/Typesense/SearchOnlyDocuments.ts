@@ -12,6 +12,7 @@ import type {
 import { normalizeArrayableParams } from "./Utils";
 import { SearchableDocuments, SearchParams } from "./Types";
 import SearchQueryMiddleware from "./SearchQueryMiddleware";
+import QueryEmbedder from "./QueryEmbedder";
 import { mergeFilterByClauses } from "./SearchQueryFilterBuilder";
 
 const RESOURCEPATH = "/documents";
@@ -21,6 +22,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
 {
   protected requestWithCache: RequestWithCache = new RequestWithCache();
   private readonly searchQueryMiddleware: SearchQueryMiddleware;
+  private readonly queryEmbedder: QueryEmbedder;
 
   constructor(
     protected collectionName: string,
@@ -31,6 +33,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       this.configuration,
       this.apiCall.logger,
     );
+    this.queryEmbedder = new QueryEmbedder(this.configuration, this.apiCall.logger);
   }
 
   clearCache() {
@@ -46,6 +49,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       middlewareEnabled = undefined,
       middlewareTimeoutMs = undefined,
       precomputedFilterBy = undefined,
+      searchMode = "lexical",
     }: SearchOptions = {},
   ): Promise<SearchResponse<T>> {
     const additionalQueryParams = {};
@@ -64,6 +68,22 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       ...rest,
     };
 
+    // Capture the original query text before vector mode potentially
+    // overwrites queryParams.q with "*", so downstream consumers that need
+    // the real query (e.g. search query middleware) aren't left blind.
+    const originalQuery = queryParams.q;
+
+    if (searchMode === "vector") {
+      const vector = await this.queryEmbedder.fetchVector(queryParams.q);
+      if (vector != null) {
+        const vectorField =
+          this.configuration.queryEmbedding?.vectorField ?? "embedding";
+        const vectorQuery = `${vectorField}:([${vector.join(",")}], k:${queryParams.per_page ?? 10})`;
+        (queryParams as { vector_query?: string }).vector_query = vectorQuery;
+        (queryParams as { q?: string }).q = "*";
+      }
+    }
+
     let middlewareFilterBy: string | undefined;
     let middlewareTelemetry: Record<string, unknown> | undefined;
 
@@ -71,7 +91,7 @@ export class SearchOnlyDocuments<T extends DocumentSchema>
       middlewareFilterBy = precomputedFilterBy;
     } else {
       const middlewareEnrichment = await this.searchQueryMiddleware.fetchEnrichment(
-        queryParams.q,
+        originalQuery,
         {
           enabledOverride: middlewareEnabled,
           timeoutMsOverride: middlewareTimeoutMs,
