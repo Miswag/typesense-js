@@ -86,6 +86,50 @@ export interface ConfigurationOptions {
      * See axios documentation for more information on how to use this parameter: https://axios-http.com/docs/req_config
      */
     axiosAdapter?: AxiosRequestConfig["adapter"];
+    searchQueryMiddleware?: SearchQueryMiddlewareOptions;
+    queryEmbedding?: QueryEmbeddingOptions;
+}
+export interface SearchQueryMiddlewareOptions {
+    /**
+     * Middleware endpoint that receives the user query and returns filters.
+     */
+    url: string;
+    /**
+     * API key sent to the middleware endpoint.
+     */
+    apiKey: string;
+    apiKeyHeader?: string;
+    queryParamName?: string;
+    requestTimeoutMs?: number;
+    enabled?: boolean;
+}
+export interface SearchQueryMiddlewareResolvedOptions extends SearchQueryMiddlewareOptions {
+    apiKeyHeader: string;
+    queryParamName: string;
+    requestTimeoutMs: number;
+    enabled: boolean;
+}
+export interface QueryEmbeddingOptions {
+    /**
+     * Embedding endpoint that receives the user query and returns a vector.
+     */
+    url: string;
+    /**
+     * Value sent as the "action" field in the request body. Default: "embed".
+     */
+    action?: string;
+    /**
+     * Typesense field the resulting vector is queried against. Default: "embedding".
+     */
+    vectorField?: string;
+    requestTimeoutMs?: number;
+    enabled?: boolean;
+}
+export interface QueryEmbeddingResolvedOptions extends QueryEmbeddingOptions {
+    action: string;
+    vectorField: string;
+    requestTimeoutMs: number;
+    enabled: boolean;
 }
 /**
  * Configuration options for streaming responses
@@ -132,8 +176,14 @@ export default class Configuration {
     readonly httpsAgent?: HTTPSAgent;
     readonly paramsSerializer?: any;
     readonly axiosAdapter?: AxiosRequestConfig["adapter"];
+    readonly searchQueryMiddleware?: SearchQueryMiddlewareResolvedOptions;
+    readonly queryEmbedding?: QueryEmbeddingResolvedOptions;
     constructor(options: ConfigurationOptions);
     validate(): boolean;
+    private validateSearchQueryMiddleware;
+    private resolveSearchQueryMiddleware;
+    private validateQueryEmbedding;
+    private resolveQueryEmbedding;
     private validateNodes;
     private isNodeMissingAnyParameters;
     private setDefaultPathInNode;

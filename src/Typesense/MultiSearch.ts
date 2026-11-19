@@ -19,7 +19,7 @@ import type {
   MultiSearchRequestsWithoutUnionSchema,
 } from "./Types";
 import { Logger } from "loglevel";
-import SearchQueryMiddleware from "./SearchQueryMiddleware";
+import SearchQueryMiddleware, { type SearchQueryMiddlewareEnrichment } from "./SearchQueryMiddleware";
 import { mergeFilterByClauses } from "./SearchQueryFilterBuilder";
 
 const RESOURCEPATH = "/multi_search";
@@ -111,7 +111,7 @@ export default class MultiSearch {
       paramsWithoutStream as SearchParams<T[number], Infix>,
     );
 
-    const middlewareTelemetryBySearch = await this.applySearchQueryMiddlewareFilters(
+    const middlewareBySearch = await this.applySearchQueryMiddlewareFilters(
       normalizedSearchRequests.searches,
       normalizedQueryParams.q,
       options,
@@ -138,7 +138,7 @@ export default class MultiSearch {
 
     return this.appendMiddlewareTelemetryToResponse(
       searchResponse,
-      middlewareTelemetryBySearch,
+      middlewareBySearch,
     );
   }
 
@@ -153,16 +153,22 @@ export default class MultiSearch {
     searches: ExtractBaseTypes<SearchParams<TDoc, Infix>>[],
     commonQuery: unknown,
     options?: SearchOptions,
-  ): Promise<(Record<string, unknown> | undefined)[]> {
+  ): Promise<(SearchQueryMiddlewareEnrichment | undefined)[]> {
+    // Same contract as documents().search: a precomputed filter (page 2+) skips the middleware call.
+    const precomputedFilterBy = options?.precomputedFilterBy?.trim()
+      ? options.precomputedFilterBy
+      : undefined;
     return Promise.all(
       searches.map(async (search) => {
-        const middlewareEnrichment = await this.searchQueryMiddleware.fetchEnrichment(
-          search.q ?? commonQuery,
-          {
-            enabledOverride: options?.middlewareEnabled,
-            timeoutMsOverride: options?.middlewareTimeoutMs,
-          },
-        );
+        const middlewareEnrichment = precomputedFilterBy != null
+          ? { filterBy: precomputedFilterBy }
+          : await this.searchQueryMiddleware.fetchEnrichment(
+            search.q ?? commonQuery,
+            {
+              enabledOverride: options?.middlewareEnabled,
+              timeoutMsOverride: options?.middlewareTimeoutMs,
+            },
+          );
         const middlewareFilterBy = middlewareEnrichment?.filterBy;
 
         search.filter_by = mergeFilterByClauses(
@@ -170,7 +176,7 @@ export default class MultiSearch {
           middlewareFilterBy,
         ) as ExtractBaseTypes<SearchParams<TDoc, Infix>>["filter_by"];
 
-        return middlewareEnrichment?.telemetry;
+        return middlewareEnrichment;
       }),
     );
   }
@@ -180,14 +186,19 @@ export default class MultiSearch {
     Infix extends string,
   >(
     response: MultiSearchResponse<T, Infix>,
-    middlewareTelemetryBySearch: (Record<string, unknown> | undefined)[],
+    middlewareBySearch: (SearchQueryMiddlewareEnrichment | undefined)[],
   ): MultiSearchResponse<T, Infix> {
-    if (middlewareTelemetryBySearch.every((telemetry) => telemetry == null)) {
+    const middlewareTelemetryBySearch = middlewareBySearch.map((m) => m?.telemetry);
+    const hasFilterBy = middlewareBySearch.some((m) => m?.filterBy);
+    if (!hasFilterBy && middlewareTelemetryBySearch.every((telemetry) => telemetry == null)) {
       return response;
     }
 
     if ("results" in response && Array.isArray(response.results)) {
-      const enrichedResults = response.results.map((result, index) => {
+      const enrichedResults = response.results.map((r, index) => {
+        // Same field documents().search returns, so callers can replay it on page 2+.
+        const filterBy = middlewareBySearch[index]?.filterBy;
+        const result = filterBy ? { ...r, middleware_filter_by: filterBy } : r;
         const telemetry = middlewareTelemetryBySearch[index];
         if (telemetry == null) {
           return result;

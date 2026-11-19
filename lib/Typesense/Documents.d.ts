@@ -128,6 +128,9 @@ export interface SearchResponse<T extends DocumentSchema> {
     error?: string;
     code?: number;
     metadata?: JsonRecord;
+    ranked_found?: number;
+    recall_found?: number;
+    middleware_filter_by?: string;
 }
 type JSONPrimitive = string | number | boolean | null;
 type JsonRecord = {
@@ -160,6 +163,10 @@ export interface DocumentsExportParameters {
 export interface SearchOptions {
     cacheSearchResultsForSeconds?: number;
     abortSignal?: AbortSignal | null;
+    middlewareEnabled?: boolean;
+    middlewareTimeoutMs?: number;
+    precomputedFilterBy?: string;
+    searchMode?: "vector" | "lexical";
 }
 export default class Documents<T extends DocumentSchema = object> extends SearchOnlyDocuments<T> implements WriteableDocuments<T> {
     constructor(collectionName: string, apiCall: ApiCall, configuration: Configuration);
