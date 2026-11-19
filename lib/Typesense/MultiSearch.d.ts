@@ -8,6 +8,7 @@ export default class MultiSearch {
     private configuration;
     private useTextContentType;
     private requestWithCache;
+    private readonly searchQueryMiddleware;
     readonly logger: Logger;
     constructor(apiCall: ApiCall, configuration: Configuration, useTextContentType?: boolean);
     clearCache(): void;
@@ -20,6 +21,8 @@ export default class MultiSearch {
         };
     }>;
     private isStreamingRequest;
+    private applySearchQueryMiddlewareFilters;
+    private appendMiddlewareTelemetryToResponse;
     private hasAnySearchObjectPagination;
 }
 export type { MultiSearchRequestsSchema, MultiSearchRequestsWithUnionSchema, MultiSearchResponse, MultiSearchUnionParameters, MultiSearchResultsParameters, UnionSearchResponse, MultiSearchRequestsWithoutUnionSchema, } from "./Types";
